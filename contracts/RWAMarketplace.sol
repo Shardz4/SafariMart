@@ -1,16 +1,17 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-
+import "./RWAToken.sol";
 
 contract RWAMarketplace is Ownable {
-    using Counters for Counters.Counter;
-    Counters.Counter private _listingIds;
+    uint256 private _listingIds;
 
     RWAToken public rwaToken;
+    IERC20 public paymentToken; // USDC on Polygon
 
     struct Listing {
         uint256 listingId;
@@ -64,8 +65,9 @@ contract RWAMarketplace is Ownable {
         uint256 amount
     );
 
-    constructor(address _rwaTokenAddress) Ownable(msg.sender) {
+    constructor(address _rwaTokenAddress, address _paymentTokenAddress) Ownable(msg.sender) {
         rwaToken = RWAToken(_rwaTokenAddress);
+        paymentToken = IERC20(_paymentTokenAddress);
     }
 
     function listAsset(uint256 tokenId, uint256 price) public {
@@ -77,8 +79,8 @@ contract RWAMarketplace is Ownable {
             "Marketplace not approved"
         );
 
-        _listingIds.increment();
-        uint256 listingId = _listingIds.current();
+        _listingIds++;
+        uint256 listingId = _listingIds;
 
         listings[listingId] = Listing({
             listingId: listingId,
@@ -94,24 +96,23 @@ contract RWAMarketplace is Ownable {
         emit Listed(listingId, tokenId, msg.sender, price);
     }
 
-    function buyAsset(uint256 listingId) public payable {
+    function buyAsset(uint256 listingId) public {
         Listing storage listing = listings[listingId];
         require(listing.active, "Listing not active");
-        require(msg.value >= listing.price, "Insufficient payment");
+        require(paymentToken.balanceOf(msg.sender) >= listing.price, "Insufficient USDC balance");
+        require(paymentToken.allowance(msg.sender, address(this)) >= listing.price, "Insufficient USDC allowance");
 
         listing.active = false;
 
         uint256 fee = (listing.price * platformFee) / FEE_DENOMINATOR;
         uint256 sellerAmount = listing.price - fee;
 
+        // Transfer NFT to buyer
         rwaToken.safeTransferFrom(listing.seller, msg.sender, listing.tokenId);
 
-        payable(listing.seller).transfer(sellerAmount);
-        payable(owner()).transfer(fee);
-
-        if (msg.value > listing.price) {
-            payable(msg.sender).transfer(msg.value - listing.price);
-        }
+        // Transfer USDC from buyer to seller and platform
+        require(paymentToken.transferFrom(msg.sender, listing.seller, sellerAmount), "Seller payment failed");
+        require(paymentToken.transferFrom(msg.sender, owner(), fee), "Fee payment failed");
 
         emit Sold(listingId, listing.tokenId, listing.seller, msg.sender, listing.price);
     }
@@ -125,20 +126,25 @@ contract RWAMarketplace is Ownable {
         emit ListingCancelled(listingId);
     }
 
-    function makeOffer(uint256 listingId) public payable {
+    function makeOffer(uint256 listingId, uint256 amount) public {
         Listing storage listing = listings[listingId];
         require(listing.active, "Listing not active");
-        require(msg.value > 0, "Offer must be greater than 0");
+        require(amount > 0, "Offer must be greater than 0");
         require(msg.sender != listing.seller, "Cannot offer on own listing");
+        require(paymentToken.balanceOf(msg.sender) >= amount, "Insufficient USDC balance");
+        require(paymentToken.allowance(msg.sender, address(this)) >= amount, "Insufficient USDC allowance");
+
+        // Transfer USDC to contract to hold offer
+        require(paymentToken.transferFrom(msg.sender, address(this), amount), "Offer transfer failed");
 
         offers[listingId].push(Offer({
             buyer: msg.sender,
-            amount: msg.value,
+            amount: amount,
             timestamp: block.timestamp,
             accepted: false
         }));
 
-        emit OfferMade(listingId, msg.sender, msg.value);
+        emit OfferMade(listingId, msg.sender, amount);
     }
 
     function acceptOffer(uint256 listingId, uint256 offerIndex) public {
@@ -156,15 +162,17 @@ contract RWAMarketplace is Ownable {
         uint256 fee = (offer.amount * platformFee) / FEE_DENOMINATOR;
         uint256 sellerAmount = offer.amount - fee;
 
+        // Transfer NFT to buyer
         rwaToken.safeTransferFrom(listing.seller, offer.buyer, listing.tokenId);
 
-        payable(listing.seller).transfer(sellerAmount);
-        payable(owner()).transfer(fee);
+        // Transfer USDC from contract to seller and platform
+        require(paymentToken.transfer(listing.seller, sellerAmount), "Seller payment failed");
+        require(paymentToken.transfer(owner(), fee), "Fee payment failed");
 
         // Refund other offers
         for (uint256 i = 0; i < offers[listingId].length; i++) {
             if (i != offerIndex && !offers[listingId][i].accepted) {
-                payable(offers[listingId][i].buyer).transfer(offers[listingId][i].amount);
+                require(paymentToken.transfer(offers[listingId][i].buyer, offers[listingId][i].amount), "Refund failed");
             }
         }
 
@@ -174,7 +182,7 @@ contract RWAMarketplace is Ownable {
 
     function getActiveListings() public view returns (Listing[] memory) {
         uint256 activeCount = 0;
-        for (uint256 i = 1; i <= _listingIds.current(); i++) {
+        for (uint256 i = 1; i <= _listingIds; i++) {
             if (listings[i].active) {
                 activeCount++;
             }
@@ -183,7 +191,7 @@ contract RWAMarketplace is Ownable {
         Listing[] memory activeListings = new Listing[](activeCount);
         uint256 currentIndex = 0;
 
-        for (uint256 i = 1; i <= _listingIds.current(); i++) {
+        for (uint256 i = 1; i <= _listingIds; i++) {
             if (listings[i].active) {
                 activeListings[currentIndex] = listings[i];
                 currentIndex++;
@@ -199,7 +207,7 @@ contract RWAMarketplace is Ownable {
         returns (Listing[] memory) 
     {
         uint256 count = 0;
-        for (uint256 i = 1; i <= _listingIds.current(); i++) {
+        for (uint256 i = 1; i <= _listingIds; i++) {
             if (listings[i].active) {
                 RWAToken.Asset memory asset = rwaToken.getAsset(listings[i].tokenId);
                 if (asset.category == category) {
@@ -211,7 +219,7 @@ contract RWAMarketplace is Ownable {
         Listing[] memory categoryListings = new Listing[](count);
         uint256 currentIndex = 0;
 
-        for (uint256 i = 1; i <= _listingIds.current(); i++) {
+        for (uint256 i = 1; i <= _listingIds; i++) {
             if (listings[i].active) {
                 RWAToken.Asset memory asset = rwaToken.getAsset(listings[i].tokenId);
                 if (asset.category == category) {
@@ -237,7 +245,12 @@ contract RWAMarketplace is Ownable {
         platformFee = newFee;
     }
 
-    function withdraw() public onlyOwner {
-        payable(owner()).transfer(address(this).balance);
+    function withdrawUSDC() public onlyOwner {
+        uint256 balance = paymentToken.balanceOf(address(this));
+        require(paymentToken.transfer(owner(), balance), "Withdrawal failed");
+    }
+
+    function updatePaymentToken(address _newPaymentToken) public onlyOwner {
+        paymentToken = IERC20(_newPaymentToken);
     }
 }

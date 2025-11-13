@@ -1,15 +1,12 @@
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-
-
 
 contract RWAToken is ERC721URIStorage, Ownable {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+    uint256 private _tokenIds;
 
     enum AssetCategory { ART, REAL_ESTATE, HANDICRAFTS }
 
@@ -42,8 +39,8 @@ contract RWAToken is ERC721URIStorage, Ownable {
         AssetCategory category,
         string memory location
     ) public returns (uint256) {
-        _tokenIds.increment();
-        uint256 newTokenId = _tokenIds.current();
+        _tokenIds++;
+        uint256 newTokenId = _tokenIds;
 
         _mint(to, newTokenId);
         _setTokenURI(newTokenId, tokenURI);
@@ -83,6 +80,6 @@ contract RWAToken is ERC721URIStorage, Ownable {
     }
 
     function totalSupply() public view returns (uint256) {
-        return _tokenIds.current();
+        return _tokenIds;
     }
 }

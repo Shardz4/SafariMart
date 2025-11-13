@@ -1,6 +1,8 @@
 // Firebase configuration and exports
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged as firebaseOnAuthStateChanged } from 'firebase/auth';
+import { getAnalytics } from 'firebase/analytics';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged as firebaseOnAuthStateChanged } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -9,14 +11,29 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || '',
 };
 
 // Check if Firebase is configured
-const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.projectId;
+const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId;
 
 const app = isFirebaseConfigured ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
 export const googleProvider = app ? new GoogleAuthProvider() : null;
+export { isFirebaseConfigured };
+
+// Initialize analytics only in the browser and when measurementId is present
+let analytics = null;
+if (app && typeof window !== 'undefined' && firebaseConfig.measurementId) {
+  try {
+    analytics = getAnalytics(app);
+  } catch (err) {
+    // Analytics may fail to initialize in some environments; ignore silently
+  }
+}
+
+export { analytics };
+export const storage = app ? getStorage(app) : null;
 
 export const loginWithEmail = async (email, password) => {
   if (!auth) {
@@ -47,10 +64,24 @@ export const loginWithGoogle = async () => {
     throw new Error('Firebase is not configured. Please add your Firebase credentials to .env.local');
   }
   try {
-    const userCredential = await signInWithPopup(auth, googleProvider);
-    return userCredential.user;
+    // Use redirect flow to avoid popup blockers
+    await signInWithRedirect(auth, googleProvider);
+    // Note: this will redirect the browser. Final user state will be picked up by onAuthStateChanged on return.
+    return null;
   } catch (error) {
     throw new Error(error.message);
+  }
+};
+
+// Helper to process redirect result if needed (can be called after redirect landing)
+export const handleRedirectResult = async () => {
+  if (!auth) return null;
+  try {
+    const result = await getRedirectResult(auth);
+    return result?.user || null;
+  } catch (err) {
+    // ignore errors here; onAuthStateChanged will handle user
+    return null;
   }
 };
 

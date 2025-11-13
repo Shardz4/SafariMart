@@ -5,6 +5,8 @@ import { useWeb3 } from '../context/Web3Context';
 import { useAuth } from '../context/AuthContext';
 import { ethers } from 'ethers';
 import { useState } from 'react';
+import { getUSDCContract, getRWAMarketplaceContract, RWA_MARKETPLACE_ADDRESS, USDC_ADDRESS } from '../lib/contracts';
+import { getSavedListings, saveListings } from '../lib/listings';
 
 export default function MarketCard({ listing }) {
   const { user } = useAuth();
@@ -17,17 +19,44 @@ export default function MarketCard({ listing }) {
     
     setIsProcessing(true);
     try {
-      // In production, this would:
-      // 1. Get USDC contract instance
-      // 2. Check USDC balance
-      // 3. Approve marketplace to spend USDC if needed
-      // 4. Call marketplace.buyAsset()
-      alert(`Purchasing ${listing.title} for $${listing.price} USDC
+      // If marketplace address isn't configured or there's no wallet provider, fallback to local purchase
+      if (!RWA_MARKETPLACE_ADDRESS || typeof window === 'undefined' || !window.ethereum) {
+        // Simulate purchase: remove from saved listings if it exists there
+        const saved = getSavedListings();
+        const remaining = saved.filter((l) => String(l.id) !== String(listing.id));
+        saveListings(remaining);
+        alert(`Purchased ${listing.title} (local simulation).`);
+        return;
+      }
 
-Note: You'll need to:
-1. Approve USDC spending
-2. Confirm purchase transaction
-3. Pay ~$0.01 MATIC for gas`);
+      // On-chain flow
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      // Use USDC contract to check allowance and approve if needed
+      const usdc = getUSDCContract(signer);
+      const marketplace = getRWAMarketplaceContract(signer);
+
+      if (!usdc || !marketplace) {
+        throw new Error('USDC or marketplace contract not configured');
+      }
+
+      const decimals = await usdc.decimals().catch(() => 6);
+      const priceAmount = ethers.parseUnits(String(listing.price), decimals);
+
+      const ownerAddress = await signer.getAddress();
+
+      // Check allowance
+      const allowance = await usdc.allowance(ownerAddress, RWA_MARKETPLACE_ADDRESS);
+      if (allowance < priceAmount) {
+        const approveTx = await usdc.approve(RWA_MARKETPLACE_ADDRESS, priceAmount);
+        await approveTx.wait();
+      }
+
+      // Call marketplace buyAsset. We assume listing.id maps to on-chain listingId for on-chain listings.
+      const tx = await marketplace.buyAsset(listing.id);
+      await tx.wait();
+      alert('Purchase successful on-chain');
     } catch (error) {
       console.error('Purchase failed:', error);
       alert('Purchase failed: ' + error.message);

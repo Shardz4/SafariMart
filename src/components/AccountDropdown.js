@@ -4,10 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { User, Wallet, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWeb3 } from '../context/Web3Context';
+import { isFirebaseConfigured } from '../lib/firebase';
+import { useRouter } from 'next/navigation';
 
 export default function AccountDropdown() {
   const { user, loginWithEmail, signUpWithEmail, loginWithGoogle, logout } = useAuth();
   const { walletAddress, connectWallet, disconnectWallet, isConnecting } = useWeb3();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [email, setEmail] = useState('');
@@ -96,7 +99,16 @@ export default function AccountDropdown() {
             {!user ? (
               <div className="p-4">
                 <button
-                  onClick={() => { setShowModal(true); setIsOpen(false); }}
+                  onClick={() => {
+                    setIsOpen(false);
+                    // If Firebase is not configured, open the Firebase console in a new tab so the developer can configure their project
+                    if (!isFirebaseConfigured) {
+                      window.open('https://console.firebase.google.com/', '_blank', 'noopener');
+                      return;
+                    }
+                    // Navigate to dedicated sign-in page to handle Google redirect/popup there
+                    router.push('/signin');
+                  }}
                   className="w-full px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700 transition"
                 >
                   Login / Sign Up
@@ -144,62 +156,7 @@ export default function AccountDropdown() {
         )}
       </div>
 
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl p-8 max-w-md w-full">
-            <h2 className="text-2xl font-bold mb-6">{isSignUp ? 'Sign Up' : 'Login'}</h2>
-            {error && <div className="bg-red-900 text-red-300 p-3 rounded mb-4">{error}</div>}
-            <div className="space-y-4">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-900 rounded-lg border border-gray-700 focus:border-blue-500 outline-none"
-                placeholder="your@email.com"
-              />
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-2 bg-gray-900 rounded-lg border border-gray-700 focus:border-blue-500 outline-none"
-                placeholder="••••••••"
-              />
-              <button onClick={handleAuth} className="w-full px-4 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 transition font-semibold">
-                {isSignUp ? 'Sign Up' : 'Login'}
-              </button>
-            </div>
-            <div className="relative my-6">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-700"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-800 text-gray-400">Or continue with</span>
-              </div>
-            </div>
-            <button
-              onClick={handleGoogleLogin}
-              className="w-full px-4 py-3 bg-white text-gray-900 rounded-lg hover:bg-gray-100 transition font-semibold"
-            >
-              Google
-            </button>
-            <div className="flex space-x-4 mt-4">
-              <button
-                onClick={() => setIsSignUp(!isSignUp)}
-                className="flex-1 px-4 py-2 text-sm text-gray-400 hover:text-white transition"
-              >
-                {isSignUp ? 'Switch to Login' : 'Need an account? Sign Up'}
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="flex-1 px-4 py-2 text-gray-400 hover:text-white transition"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* The modal was replaced by a dedicated `/signin` page; buttons now navigate there. */}
     </>
   );
 }

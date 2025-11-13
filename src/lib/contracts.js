@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 
 // Contract addresses from .env.local
-const RWA_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_RWA_TOKEN_ADDRESS;
-const RWA_MARKETPLACE_ADDRESS = process.env.NEXT_PUBLIC_RWA_MARKETPLACE_ADDRESS;
-const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS;
+export const RWA_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_RWA_TOKEN_ADDRESS;
+export const RWA_MARKETPLACE_ADDRESS = process.env.NEXT_PUBLIC_RWA_MARKETPLACE_ADDRESS;
+export const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS;
 
 // Minimal ABIs for contract interaction
 const RWA_TOKEN_ABI = [

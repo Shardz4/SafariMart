@@ -1,0 +1,6 @@
+- [ ] Remove expo-image-picker import from mobile/components/SellForm.js
+- [ ] Remove imageUri state from mobile/components/SellForm.js
+- [ ] Remove pickImage function from mobile/components/SellForm.js
+- [ ] Remove image picker UI elements (button and preview) from mobile/components/SellForm.js
+- [ ] Update handleSubmit to always use default placeholder image instead of imageUri
+- [ ] Remove imageUri reset in success cases

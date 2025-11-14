@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "c6a1af25-c949-48b0-9850-e8b796641b05"
+      }
+    },
+    "android": {
+      "package": "com.shardzdb.safarimart"
+    }
+  }
+}

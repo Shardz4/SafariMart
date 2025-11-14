@@ -21,7 +21,8 @@
     "expo-dev-client": "~6.0.17",
     "expo-image-picker": "^17.0.8",
     "firebase": "^10.14.1",
-
+    "lucide-react": "^0.263.1", 
+    "lucide-react-native": "^0.553.0",
     "next": "^14.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

@@ -24,6 +24,8 @@ export function AuthProvider({ children }) {
     return unsubscribe;
   }, []);
 
+
+
   const loginWithEmail = async (email, password) => {
     try {
       const userCredential = await import('../lib/firebase').then((mod) => mod.loginWithEmail(email, password));

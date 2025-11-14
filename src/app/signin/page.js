@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 
 export default function SignInPage() {
   const router = useRouter();
-  const { loginWithEmail, signUpWithEmail, loginWithGoogle } = useAuth();
+  const { user, loginWithEmail, signUpWithEmail, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
@@ -22,25 +22,29 @@ export default function SignInPage() {
       } else {
         await loginWithEmail(email, password);
       }
-      router.push('/');
+      // Note: router.push('/') is handled by useEffect when user state changes
     } catch (err) {
       const message = err?.message || 'Sign in failed';
       setError(message.replace('Firebase: ', '').replace(/\(auth\/[^)]+\)/, '').trim());
-    } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (user) {
+      router.push('/');
+    }
+  }, [user, router]);
 
   const handleGoogle = async () => {
     try {
       setError('');
       setLoading(true);
       await loginWithGoogle();
-      router.push('/');
+      // User state will be updated by AuthContext, and useEffect will redirect
     } catch (err) {
       const message = err?.message || 'Google sign-in failed';
       setError(message.replace('Firebase: ', '').replace(/\(auth\/[^)]+\)/, '').trim());
-    } finally {
       setLoading(false);
     }
   };

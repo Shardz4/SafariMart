@@ -1,7 +1,7 @@
 // Firebase configuration and exports
 import { initializeApp } from 'firebase/app';
 import { getAnalytics } from 'firebase/analytics';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged as firebaseOnAuthStateChanged } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged as firebaseOnAuthStateChanged } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -64,10 +64,8 @@ export const loginWithGoogle = async () => {
     throw new Error('Firebase is not configured. Please add your Firebase credentials to .env.local');
   }
   try {
-    // Use redirect flow to avoid popup blockers
-    await signInWithRedirect(auth, googleProvider);
-    // Note: this will redirect the browser. Final user state will be picked up by onAuthStateChanged on return.
-    return null;
+    const result = await signInWithPopup(auth, googleProvider);
+    return result.user;
   } catch (error) {
     throw new Error(error.message);
   }
